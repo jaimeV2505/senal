@@ -6,10 +6,12 @@ Canal privado de dos personas. Next.js + Vercel KV. Se despliega y vive todo en 
 
 1. `/` — clave de entrada compartida (`ENTRY_KEY`), la que le das a la otra persona.
 2. `/welcome` — el mensaje se decodifica letra por letra. Botones **Sí** / **No**, los dos funcionan de verdad:
-   - **Sí** → guarda la elección y la hora en la base de datos (así ves de tu lado si respondió), y muestra "las instrucciones llegan pronto" con acceso al login.
+   - **Sí** → guarda la elección y la hora, dispara la notificación de Telegram, y **muestra en pantalla la clave personal de acceso (`KEY_B`)** con un botón para copiarla, lista para usarse en el login.
    - **No** → guarda igual la elección (para que sepas que vio el mensaje), pero no fuerza nada ni intenta que cambie de opinión.
 3. `/login` — clave personal (`KEY_A` o `KEY_B`) para identificarse como una de las dos personas.
-4. `/chat` — conversación real. Polling cada 3s, marca de "visto", y cada mensaje se autodestruye pasado `MESSAGE_TTL_SECONDS`.
+4. `/chat` — conversación real, cifrada de extremo a extremo. Polling cada 3s, marca de "visto", mensajes de una vista, y cada mensaje se autodestruye pasado `MESSAGE_TTL_SECONDS`.
+
+**Nota sobre el paso 2:** la clave que se revela siempre es `KEY_B` — se asume que quien construye y despliega esto es la persona A (que ya tiene ambas claves de antemano), y quien responde la bienvenida por primera vez es la persona B, que todavía no tiene ninguna clave hasta ese momento. La revelación solo ocurre después de que la respuesta guardada en el servidor sea "sí" — no se puede obtener saltándose el flujo.
 
 ## Desplegar
 

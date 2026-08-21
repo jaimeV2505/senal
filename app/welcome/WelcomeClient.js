@@ -18,6 +18,9 @@ export default function WelcomeClient() {
   const [decodeDone, setDecodeDone] = useState(false);
   const [choice, setChoice] = useState(null); // null | "si" | "no"
   const [sending, setSending] = useState(false);
+  const [revealedKey, setRevealedKey] = useState(null);
+  const [keyError, setKeyError] = useState("");
+  const [copied, setCopied] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -51,8 +54,28 @@ export default function WelcomeClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ choice: value }),
       });
+      if (value === "si") {
+        const res = await fetch("/api/reveal-key");
+        const data = await res.json();
+        if (res.ok) {
+          setRevealedKey(data.key);
+        } else {
+          setKeyError(data.error || "no se pudo obtener la clave.");
+        }
+      }
     } finally {
       setSending(false);
+    }
+  }
+
+  async function handleCopy() {
+    if (!revealedKey) return;
+    try {
+      await navigator.clipboard.writeText(revealedKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // si el navegador bloquea el portapapeles, la persona la copia a mano
     }
   }
 
@@ -146,8 +169,61 @@ export default function WelcomeClient() {
             }}
           >
             <p style={{ fontSize: 14, color: "var(--accent)", letterSpacing: "0.03em" }}>
-              recibido. las instrucciones llegan pronto.
+              recibido.
             </p>
+
+            {revealedKey && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <p style={{ fontSize: 12, color: "var(--muted)", letterSpacing: "0.1em" }}>
+                  ESTA ES TU CLAVE DE ACCESO
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    border: "1px solid var(--accent-dim)",
+                    background: "var(--surface)",
+                    padding: "12px 14px",
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: 1,
+                      fontFamily: "var(--font-display)",
+                      fontSize: 16,
+                      letterSpacing: "0.08em",
+                      color: "var(--accent)",
+                      userSelect: "text",
+                    }}
+                  >
+                    {revealedKey}
+                  </span>
+                  <button
+                    onClick={handleCopy}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      padding: "6px 10px",
+                      fontFamily: "var(--font-display)",
+                      fontSize: 11,
+                      letterSpacing: "0.1em",
+                    }}
+                  >
+                    {copied ? "✓" : "COPIAR"}
+                  </button>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.6 }}>
+                  guárdala. te la va a pedir la pantalla de entrada al canal.
+                </p>
+              </div>
+            )}
+
+            {keyError && (
+              <p style={{ fontSize: 12, color: "var(--danger)" }}>{keyError}</p>
+            )}
+
             <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
               revisa cuando puedas, cuando pienses en esa persona, o cuando
               simplemente quieras decir algo.
