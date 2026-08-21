@@ -51,15 +51,23 @@ export default function ChatClient({ user }) {
     e.preventDefault();
     if (!text.trim() || sending) return;
     setSending(true);
+    setUploadError("");
     const value = text;
     setText("");
     try {
-      await fetch("/api/messages", {
+      const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: value }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `error ${res.status} al enviar`);
+      }
       await fetchMessages();
+    } catch (err) {
+      setUploadError(err.message || "no se pudo enviar el mensaje.");
+      setText(value); // devuelve el texto para que no se pierda
     } finally {
       setSending(false);
     }
@@ -85,15 +93,19 @@ export default function ChatClient({ user }) {
         handleUploadUrl: "/api/upload",
       });
 
-      await fetch("/api/messages", {
+      const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, url: blob.url }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `error ${res.status} al guardar el mensaje`);
+      }
 
       await fetchMessages();
     } catch (err) {
-      setUploadError("no se pudo enviar el archivo.");
+      setUploadError(err.message || "no se pudo enviar el archivo.");
     } finally {
       setUploading(false);
     }

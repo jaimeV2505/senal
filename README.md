@@ -26,6 +26,20 @@ Canal privado de dos personas. Next.js + Vercel KV. Se despliega y vive todo en 
    - `TELEGRAM_BOT_TOKEN` y `TELEGRAM_CHAT_ID` — opcional, pero es como te llega la notificación instantánea de "sí" fuera de la app. Ver instrucciones abajo.
 5. Deploy.
 
+## Mientras están probando (antes de ir en serio)
+
+Agrega `DEV_MODE=true` en las variables de entorno. Esto habilita `/dev`: una página con un botón **[ REINICIAR TODO ]** que borra la respuesta de bienvenida, todos los mensajes (con sus fotos/videos), y cierra la sesión de tu navegador — así puedes probar el flujo completo desde cero (bienvenida → sí/no → login → chat) sin tener que hacer un deploy nuevo cada vez.
+
+**El día que esto quede en vivo de verdad entre ustedes dos**, cambia `DEV_MODE` a `false` (o bórralo) en Vercel y redeploy. Con eso, `/dev` deja de funcionar — nadie puede resetear la conversación por accidente ni a propósito.
+
+## Si algo no envía (mensajes o fotos/video)
+
+Ahora los errores reales se muestran en rojo debajo del cuadro de texto en vez de un mensaje genérico. Las causas más comunes:
+
+- **Fotos/video fallan pero el texto funciona:** casi siempre es que falta conectar **Storage → Create Database → Blob** en Vercel (o falta la variable `BLOB_READ_WRITE_TOKEN`).
+- **Nada se envía, ni texto:** revisa que **Storage → KV** esté conectado y que `KV_REST_API_URL` / `KV_REST_API_TOKEN` existan en Environment Variables.
+- Cualquier cambio en variables de entorno necesita un **Redeploy** para tomar efecto (no basta con guardarlas).
+
 ## Configurar la notificación de "sí" (Telegram)
 
 Sin esto, la respuesta igual queda guardada y visible en el chat, pero no llega ningún aviso fuera de la app. Con esto, te llega al instante a tu Telegram apenas la otra persona toque "Sí" (o "No").
