@@ -1,0 +1,90 @@
+:root {
+  --bg: #0a0e0c;
+  --surface: #101512;
+  --surface-2: #182019;
+  --border: #26332c;
+  --text: #d8e0d6;
+  --muted: #64766c;
+  --accent: #ffb454;
+  --accent-dim: #8a6a35;
+  --danger: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body), monospace;
+  min-height: 100dvh;
+}
+
+body {
+  position: relative;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Deja seleccionar el texto de los mensajes si de verdad hace falta copiar
+   algo puntual, pero no lo facilita a nivel de UI (sin botones de copiar). */
+.msg-text {
+  user-select: text;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input {
+  font-family: inherit;
+}
+
+.noise {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: overlay;
+}
+
+.scanlines::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0px,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--bg);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
