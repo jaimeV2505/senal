@@ -6,9 +6,9 @@ import { useRouter } from "next/navigation";
 const LINES = [
   "Desde la última vez, pensé que los sueños pararían.",
   "No fue así.",
-  "Sigo llegando aquí cuando pienso te pienso.",
+  "Sigo llegando aquí cuando pienso en ti.",
   "Hay cosas que últimamente me hacen pensar en ti.",
-"Y algunas... prefiero dejarlas para cuando volvamos a encontrarnos."
+  "Y por ahora, prefiero que sigan siendo solo nuestras.",
 ];
 
 export default function WelcomeClient() {

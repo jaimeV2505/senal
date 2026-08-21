@@ -50,15 +50,33 @@ Sin esto, la respuesta igual queda guardada y visible en el chat, pero no llega 
 4. Busca en el JSON el número dentro de `"chat": { "id": ... }` — ese es tu `TELEGRAM_CHAT_ID`.
 5. Agrega ambos valores en Vercel → Settings → Environment Variables, y redeploy.
 
-## Qué tan privado es esto en realidad
+## Qué tan blindado queda esto (auditoría honesta)
 
-Para que lo uses con expectativas correctas, no por desconfianza:
+Para que decidas con información real, no con humo. Esto es lo que SÍ está protegido y lo que NO puedo prometer:
 
-- **Nadie puede entrar sin las claves.** Sin `ENTRY_KEY` no se llega ni a la pantalla de bienvenida; sin `KEY_A`/`KEY_B` no se llega al chat.
-- **Los mensajes se autodestruyen solos** pasado el tiempo que definas (TTL en Redis), sin que nadie tenga que borrarlos a mano.
-- **"Bloqueado a solo copiar" tiene un límite real:** deshabilité el menú de clic derecho y el evento de copiar en la interfaz, lo cual detiene a alguien casual. Pero cualquiera con las herramientas de desarrollador del navegador (F12) puede ver el texto igual — eso es cierto en *cualquier* página web, no hay forma de evitarlo del todo en un navegador. Si de verdad necesitas que el contenido no pueda salir de ahí bajo ningún escenario, la única vía real es no mostrarlo en un navegador normal, y eso ya es otro tipo de proyecto.
-- **No se registra IP ni ubicación de nadie.** Solo se guarda: quién eligió qué en la bienvenida, y a qué hora, exactamente lo que la persona sabe que está pasando cuando hace clic.
-- **Fotos y videos también se autodestruyen** junto con el mensaje al que pertenecen — no quedan huérfanos en el almacenamiento.
+### Lo que sí está cubierto
+
+- **El texto viaja y se guarda cifrado de extremo a extremo.** El navegador de quien escribe cifra el mensaje con AES-256-GCM antes de mandarlo. El servidor y la base de datos (Vercel KV) solo almacenan el bloque cifrado — ni Vercel, ni quien tenga acceso al dashboard de la base de datos, ni un backup filtrado, pueden leer el contenido sin la frase secreta. Esa frase nunca sale del navegador de cada quien; se guarda solo en `localStorage` de su propio dispositivo.
+- **Mensajes de una sola vista.** Con el interruptor 👁 activado, en cuanto la otra persona lo recibe, el contenido se destruye del servidor y queda un rastro "🔥 autodestruido" — no se puede volver a leer ni recuperar.
+- **Nadie entra sin las claves.** `ENTRY_KEY` para la bienvenida, `KEY_A`/`KEY_B` para el chat.
+- **Todo se autodestruye solo** pasado el tiempo que definas (TTL), sin que nadie tenga que borrar nada a mano.
+- **Fotos y videos se borran** junto con su mensaje (aunque ver el punto de abajo sobre estos).
+
+### Lo que NO puedo prometer (para que no haya sorpresas)
+
+- **Fotos y video NO están cifradas.** Viven en Vercel Blob como archivos accesibles por su URL (una URL larga y aleatoria, difícil de adivinar, pero no cifrada). Si alguien consigue esa URL exacta antes de que se borre, puede verla. El texto sí está cifrado; las imágenes/videos, por ahora, dependen de que la URL sea difícil de adivinar, no de cifrado real.
+- **"No se puede copiar" tiene un límite real.** Bloqueamos clic derecho y el evento de copiar, pero cualquiera con las herramientas de desarrollador del navegador puede ver el contenido igual — cierto en cualquier página web, no hay forma de evitarlo del todo desde un navegador.
+- **Si pierden la frase de cifrado, pierden los mensajes viejos.** No hay "recuperar contraseña" para la frase de cifrado — es la idea, nosotros tampoco la guardamos en ningún lado. Si un día la cambian o la olvidan, los mensajes ya guardados con la frase anterior no se van a poder descifrar (van a mostrar "no se pudo descifrar").
+- **La seguridad de la cuenta de Vercel y GitHub importa.** Cualquiera que entre a tu cuenta de Vercel puede ver las variables de entorno (`KEY_A`, `KEY_B`, `ENTRY_KEY`) y desconectar todo. Activa verificación en dos pasos en Vercel y GitHub, y mantén el repo en **privado**.
+- **Rota las claves antes de ir en serio.** Las claves de prueba que generamos en esta conversación de chat quedaron escritas en este historial — trátalas como ya vistas por más de ustedes dos. Antes de considerar esto "en vivo" de verdad, genera un set nuevo de `ENTRY_KEY`, `KEY_A`, `KEY_B` y la frase de cifrado, y no las compartas por el mismo medio donde las generaste.
+- **`AUTH_SECRET` no rota solo.** Si algún día sospechan que se filtró, cámbienlo en Vercel — invalida todas las sesiones activas al instante (ambos tendrían que volver a loguearse).
+
+### Antes de considerar esto "en vivo"
+
+1. Genera un set nuevo de claves (no las que usamos para probar).
+2. Ponte de acuerdo con la otra persona en la frase de cifrado **por fuera de este chat** (en persona, o por otro canal ya establecido) — nunca la escriban aquí ni se la compartan en el mismo lugar donde comparten `ENTRY_KEY`.
+3. Cambia `DEV_MODE` a `false`.
+4. Confirma que el repo de GitHub esté en privado.
 
 ## Estructura
 

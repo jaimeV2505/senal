@@ -32,6 +32,7 @@ export async function GET() {
     const messages = [];
     const idsToRemove = [];
     const blobsToDelete = [];
+    const toBurn = []; // mensajes de "una vista" que se entregan ahora y se destruyen después
 
     for (let i = 0; i < raw.length; i++) {
       const msg = raw[i];
@@ -44,10 +45,18 @@ export async function GET() {
         if (msg.url) blobsToDelete.push(msg.url);
         continue;
       }
+
       messages.push({
         ...msg,
         seen: msg.from === user ? msg.at <= otherLastSeen : true,
       });
+
+      // Se destruye después de que la otra persona (el destinatario, no quien
+      // lo envió) lo recibe una vez. Quien lo mandó puede seguir viéndolo en
+      // su propia lista hasta que eso pase.
+      if (msg.viewOnce && msg.type !== "burned" && msg.from !== user) {
+        toBurn.push(msg);
+      }
     }
 
     if (idsToRemove.length > 0) {
@@ -56,6 +65,27 @@ export async function GET() {
     }
     if (blobsToDelete.length > 0) {
       await Promise.all(blobsToDelete.map((url) => del(url).catch(() => {})));
+    }
+    if (toBurn.length > 0) {
+      await Promise.all(
+        toBurn.map(async (msg) => {
+          const remainingMs = Math.max(0, (msg.expiresAt || now) - now);
+          const remainingSec = Math.max(60, Math.floor(remainingMs / 1000));
+          await kv.set(
+            `msg:${msg.id}`,
+            {
+              id: msg.id,
+              from: msg.from,
+              type: "burned",
+              viewOnce: true,
+              at: msg.at,
+              expiresAt: msg.expiresAt,
+            },
+            { ex: remainingSec }
+          );
+          if (msg.url) await del(msg.url).catch(() => {});
+        })
+      );
     }
 
     messages.sort((a, b) => a.at - b.at);
@@ -79,6 +109,7 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const type = body.type === "image" || body.type === "video" ? body.type : "text";
+    const viewOnce = Boolean(body.viewOnce);
 
     let message;
     const id = randomUUID();
@@ -86,16 +117,19 @@ export async function POST(req) {
     const expiresAt = at + TTL * 1000;
 
     if (type === "text") {
-      const text = (body.text || "").trim();
-      if (!text) {
-        return NextResponse.json({ error: "Mensaje vacío." }, { status: 400 });
+      // El servidor nunca ve el texto en claro: solo recibe y guarda el
+      // bloque ya cifrado por el navegador de quien lo envía.
+      const ciphertext = (body.ciphertext || "").trim();
+      const iv = (body.iv || "").trim();
+      if (!ciphertext || !iv) {
+        return NextResponse.json({ error: "Mensaje vacío o mal cifrado." }, { status: 400 });
       }
-      message = { id, from: user, type, text: text.slice(0, 4000), at, expiresAt };
+      message = { id, from: user, type, ciphertext, iv, viewOnce, at, expiresAt };
     } else {
       if (!body.url) {
         return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
       }
-      message = { id, from: user, type, url: body.url, at, expiresAt };
+      message = { id, from: user, type, url: body.url, viewOnce, at, expiresAt };
     }
 
     await kv.set(`msg:${id}`, message, { ex: TTL + SAFETY_MARGIN });
