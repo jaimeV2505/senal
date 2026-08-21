@@ -24,12 +24,12 @@ export async function POST(req) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
-  const { publicKeyJwk } = await req.json();
-  if (!publicKeyJwk) {
+  const { publicKey } = await req.json();
+  if (!publicKey) {
     return NextResponse.json({ error: "Falta la llave pública." }, { status: 400 });
   }
 
-  await kv.set(`pubkey:${user}`, publicKeyJwk);
+  await kv.set(`pubkey:${user}`, publicKey);
 
   return NextResponse.json({ ok: true });
 }

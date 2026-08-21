@@ -4,7 +4,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import {
-  loadOrCreateKeypair,
+  getSavedPassphrase,
+  savePassphrase,
+  clearPassphrase,
+  deriveKeypairFromPassphrase,
   deriveSharedKey,
   encryptText,
   decryptText,
@@ -22,44 +25,23 @@ export default function ChatClient({ user }) {
   const [uploadError, setUploadError] = useState("");
   const [now, setNow] = useState(Date.now());
   const [encKey, setEncKey] = useState(null);
+  const [needsPassphrase, setNeedsPassphrase] = useState(false);
+  const [passphraseInput, setPassphraseInput] = useState("");
   const [waitingForOther, setWaitingForOther] = useState(false);
-  const myKeypairRef = useRef(null);
+  const myPrivateKeyRef = useRef(null);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const router = useRouter();
 
-  // Genera (o recupera) tu propio par de llaves, publica la pública, y
-  // trata de conseguir la de la otra persona para armar el cifrado
-  // compartido. Nadie tuvo que decirle nada a nadie por fuera de la app.
+  // Publica tu llave pública (derivada de tu frase) y trata de conseguir
+  // la de la otra persona para armar el cifrado compartido.
   const trySetupEncryption = useCallback(async () => {
-    if (!myKeypairRef.current) {
-      const kp = await loadOrCreateKeypair(user);
-      myKeypairRef.current = kp;
-      if (kp.isNew) {
-        await fetch("/api/keys", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ publicKeyJwk: kp.publicJwk }),
-        }).catch(() => {});
-      } else {
-        // asegura que el servidor tenga nuestra pública aunque ya
-        // existiera localmente (por si se limpió del lado del servidor)
-        fetch("/api/keys", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ publicKeyJwk: kp.publicJwk }),
-        }).catch(() => {});
-      }
-    }
-
+    if (!myPrivateKeyRef.current) return;
     try {
       const res = await fetch("/api/keys", { cache: "no-store" });
       const data = await res.json();
       if (data.otherPublicKey) {
-        const shared = await deriveSharedKey(
-          myKeypairRef.current.privateKey,
-          data.otherPublicKey
-        );
+        const shared = await deriveSharedKey(myPrivateKeyRef.current, data.otherPublicKey);
         setEncKey(shared);
         setWaitingForOther(false);
       } else {
@@ -68,15 +50,51 @@ export default function ChatClient({ user }) {
     } catch {
       // se reintenta en el próximo poll
     }
-  }, [user]);
+  }, []);
+
+  async function unlockWithPassphrase(passphrase) {
+    const { privateKey, publicKeyB64 } = await deriveKeypairFromPassphrase(passphrase);
+    myPrivateKeyRef.current = privateKey;
+    await fetch("/api/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ publicKey: publicKeyB64 }),
+    }).catch(() => {});
+    setNeedsPassphrase(false);
+    await trySetupEncryption();
+  }
 
   useEffect(() => {
-    trySetupEncryption();
-    const interval = setInterval(() => {
-      if (!encKey) trySetupEncryption();
-    }, POLL_MS);
+    const saved = getSavedPassphrase(user);
+    if (saved) {
+      unlockWithPassphrase(saved);
+    } else {
+      setNeedsPassphrase(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (needsPassphrase || encKey) return;
+    const interval = setInterval(trySetupEncryption, POLL_MS);
     return () => clearInterval(interval);
-  }, [trySetupEncryption, encKey]);
+  }, [needsPassphrase, encKey, trySetupEncryption]);
+
+  async function handleSetPassphrase(e) {
+    e.preventDefault();
+    if (!passphraseInput.trim()) return;
+    savePassphrase(user, passphraseInput.trim());
+    await unlockWithPassphrase(passphraseInput.trim());
+    setPassphraseInput("");
+  }
+
+  function handleChangePassphrase() {
+    clearPassphrase(user);
+    myPrivateKeyRef.current = null;
+    setEncKey(null);
+    setWaitingForOther(false);
+    setNeedsPassphrase(true);
+  }
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -190,6 +208,92 @@ export default function ChatClient({ user }) {
     }
   }
 
+  if (needsPassphrase) {
+    return (
+      <main
+        style={{
+          minHeight: "100dvh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <form
+          onSubmit={handleSetPassphrase}
+          style={{
+            width: "100%",
+            maxWidth: 380,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          <p
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 12,
+              letterSpacing: "0.2em",
+              color: "var(--muted)",
+              textAlign: "center",
+            }}
+          >
+            TU FRASE PERSONAL
+          </p>
+          <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, textAlign: "center" }}>
+            Esta es solo tuya. No se la digas a la otra persona, ni ella te
+            va a pedir la suya. Nunca sale de este navegador — ni siquiera
+            nosotros la vemos. Úsala siempre igual: si algún día cambias de
+            dispositivo, con volver a escribirla recuperas todo.
+          </p>
+          <div
+            style={{
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+              padding: "18px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <span style={{ color: "var(--accent)" }}>&gt;</span>
+            <input
+              type="password"
+              value={passphraseInput}
+              onChange={(e) => setPassphraseInput(e.target.value)}
+              placeholder="tu frase secreta"
+              autoComplete="off"
+              autoFocus
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                color: "var(--text)",
+                fontSize: 15,
+              }}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!passphraseInput.trim()}
+            style={{
+              background: "transparent",
+              border: `1px solid ${passphraseInput.trim() ? "var(--accent)" : "var(--border)"}`,
+              color: passphraseInput.trim() ? "var(--accent)" : "var(--muted)",
+              padding: "12px 16px",
+              fontFamily: "var(--font-display)",
+              fontSize: 12,
+              letterSpacing: "0.2em",
+            }}
+          >
+            [ DESBLOQUEAR ]
+          </button>
+        </form>
+      </main>
+    );
+  }
+
   if (waitingForOther && !encKey) {
     return (
       <main
@@ -222,9 +326,9 @@ export default function ChatClient({ user }) {
             ARMANDO EL CIFRADO
           </p>
           <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-            Ya generaste tu llave. Falta que la otra persona entre al menos
-            una vez a este chat para poder combinar las dos y cifrar la
-            conversación. En cuanto entre, esto se arma solo.
+            Ya guardaste tu frase. Falta que la otra persona entre y ponga
+            la suya para poder combinar las dos y cifrar la conversación. En
+            cuanto lo haga, esto se arma solo.
           </p>
           <PulseDot />
         </div>
@@ -266,6 +370,21 @@ export default function ChatClient({ user }) {
           CANAL ACTIVO · {user}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={handleChangePassphrase}
+            title="cambiar tu frase personal"
+            style={{
+              background: "transparent",
+              border: "1px solid var(--border)",
+              color: "var(--muted)",
+              padding: "6px 12px",
+              fontSize: 11,
+              letterSpacing: "0.1em",
+              fontFamily: "var(--font-display)",
+            }}
+          >
+            MI FRASE
+          </button>
           <button
             onClick={handleLogout}
             style={{

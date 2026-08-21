@@ -58,7 +58,7 @@ Para que decidas con información real, no con humo. Esto es lo que SÍ está pr
 
 ### Lo que sí está cubierto
 
-- **El texto viaja y se guarda cifrado de extremo a extremo, sin que tengan que ponerse de acuerdo en nada por fuera.** Cada persona genera su propia llave privada en su navegador (nunca sale de ahí); solo la llave pública sube al servidor. Cuando ambas llaves públicas están disponibles, cada navegador combina su propia llave privada con la pública de la otra persona (intercambio Diffie-Hellman sobre curva elíptica — la misma técnica detrás de Signal) y las dos llegan, por separado, a la misma llave de cifrado. El servidor y la base de datos (Vercel KV) solo almacenan el bloque ya cifrado — nunca ven el texto ni la llave que lo descifra.
+- **El texto viaja y se guarda cifrado de extremo a extremo, con una frase que cada quien elige por su cuenta.** Después de iniciar sesión, cada persona escribe su propia frase secreta (nunca la del otro, nunca se la comparten entre ustedes). Esa frase se convierte, siempre de la misma forma, en una llave privada X25519 — la misma familia de curva elíptica que usa Signal. Solo la llave pública derivada sube al servidor (una llave pública no es un secreto). Cuando ambas llaves públicas existen, cada navegador combina su propia llave privada con la pública de la otra persona (Diffie-Hellman) y las dos llegan, cada una por su lado, a la misma llave de cifrado. El servidor y la base de datos (Vercel KV) solo ven el bloque ya cifrado — nunca el texto, nunca ninguna de las dos frases.
 - **Mensajes de una sola vista.** Con el interruptor 👁 activado, en cuanto la otra persona lo recibe, el contenido se destruye del servidor y queda un rastro "🔥 autodestruido" — no se puede volver a leer ni recuperar.
 - **Nadie entra sin las claves.** `ENTRY_KEY` para la bienvenida, `KEY_A`/`KEY_B` para el chat.
 - **Todo se autodestruye solo** pasado el tiempo que definas (TTL), sin que nadie tenga que borrar nada a mano.
@@ -68,16 +68,16 @@ Para que decidas con información real, no con humo. Esto es lo que SÍ está pr
 
 - **Fotos y video NO están cifradas.** Viven en Vercel Blob como archivos accesibles por su URL (una URL larga y aleatoria, difícil de adivinar, pero no cifrada). Si alguien consigue esa URL exacta antes de que se borre, puede verla. El texto sí está cifrado; las imágenes/videos, por ahora, dependen de que la URL sea difícil de adivinar, no de cifrado real.
 - **"No se puede copiar" tiene un límite real.** Bloqueamos clic derecho y el evento de copiar, pero cualquiera con las herramientas de desarrollador del navegador puede ver el contenido igual — cierto en cualquier página web, no hay forma de evitarlo del todo desde un navegador.
-- **Si borran los datos del navegador (o cambian de dispositivo), pierden su llave privada.** No hay "recuperar llave" — es la idea, nadie más la tiene guardada en ningún lado, ni nosotros. Si eso pasa, ese navegador genera una llave nueva automáticamente la próxima vez que entre, pero los mensajes cifrados con la llave anterior quedan ilegibles para siempre (mostrarán "no se pudo descifrar"). Usa `/dev` → reiniciar todo si estás probando y quieres empezar de cero.
-- **La primera vez, alguien tiene que esperar a que el otro entre.** Hasta que las dos llaves públicas existan en el servidor, no hay con qué cifrar — verán una pantalla de "armando el cifrado" hasta que ambos hayan entrado al chat al menos una vez.
+- **Tu frase personal es tuya y de nadie más.** Se guarda en `localStorage` de tu navegador solo para no tener que retiparla cada vez, pero lo importante es que la recuerdes tú: si un día cambias de dispositivo o borras los datos del navegador, con volver a escribir exactamente la misma frase recuperas la misma llave y sigues leyendo todo. Si la olvidas o la escribes distinto, esa identidad no va a poder descifrar nada — no hay "recuperar frase", ni nosotros la guardamos en ningún lado.
+- **La primera vez, alguien tiene que esperar a que el otro entre y ponga la suya.** Hasta que las dos llaves públicas existan en el servidor, no hay con qué cifrar — verán una pantalla de "armando el cifrado" hasta que ambos hayan puesto su frase al menos una vez.
 - **La seguridad de la cuenta de Vercel y GitHub importa.** Cualquiera que entre a tu cuenta de Vercel puede ver las variables de entorno (`KEY_A`, `KEY_B`, `ENTRY_KEY`) y desconectar todo. Activa verificación en dos pasos en Vercel y GitHub, y mantén el repo en **privado**.
 - **Rota las claves antes de ir en serio.** Las claves de prueba que generamos en esta conversación de chat quedaron escritas en este historial — trátalas como ya vistas por más de ustedes dos. Antes de considerar esto "en vivo" de verdad, genera un set nuevo de `ENTRY_KEY`, `KEY_A`, `KEY_B` y la frase de cifrado, y no las compartas por el mismo medio donde las generaste.
 - **`AUTH_SECRET` no rota solo.** Si algún día sospechan que se filtró, cámbienlo en Vercel — invalida todas las sesiones activas al instante (ambos tendrían que volver a loguearse).
 
 ### Antes de considerar esto "en vivo"
 
-1. Genera un set nuevo de claves (no las que usamos para probar).
-2. Ve a `/dev` y toca **[ REINICIAR TODO ]** una última vez, para que ambos generen su llave de cifrado definitiva desde cero (no la que usaste mientras probabas).
+1. Genera un set nuevo de claves de login (no las que usamos para probar).
+2. Ve a `/dev` y toca **[ REINICIAR TODO ]** una última vez, y cuando vuelvan a entrar, cada quien escriba su frase personal **definitiva** (no la que usaron mientras probaban) — esa es la que va a quedar guardada para siempre en cada dispositivo.
 3. Cambia `DEV_MODE` a `false`.
 4. Confirma que el repo de GitHub esté en privado.
 

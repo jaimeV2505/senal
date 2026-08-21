@@ -16,8 +16,8 @@ export default function DevClient() {
         setStatus("algo falló al reiniciar. revisa la consola.");
         return;
       }
-      window.localStorage.removeItem("senal_ecdh_A");
-      window.localStorage.removeItem("senal_ecdh_B");
+      window.localStorage.removeItem("senal_passphrase_A");
+      window.localStorage.removeItem("senal_passphrase_B");
       setStatus("listo. redirigiendo...");
       setTimeout(() => router.push("/"), 600);
     } catch {
