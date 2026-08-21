@@ -58,7 +58,7 @@ Para que decidas con información real, no con humo. Esto es lo que SÍ está pr
 
 ### Lo que sí está cubierto
 
-- **El texto viaja y se guarda cifrado de extremo a extremo.** El navegador de quien escribe cifra el mensaje con AES-256-GCM antes de mandarlo. El servidor y la base de datos (Vercel KV) solo almacenan el bloque cifrado — ni Vercel, ni quien tenga acceso al dashboard de la base de datos, ni un backup filtrado, pueden leer el contenido sin la frase secreta. Esa frase nunca sale del navegador de cada quien; se guarda solo en `localStorage` de su propio dispositivo.
+- **El texto viaja y se guarda cifrado de extremo a extremo, sin que tengan que ponerse de acuerdo en nada por fuera.** Cada persona genera su propia llave privada en su navegador (nunca sale de ahí); solo la llave pública sube al servidor. Cuando ambas llaves públicas están disponibles, cada navegador combina su propia llave privada con la pública de la otra persona (intercambio Diffie-Hellman sobre curva elíptica — la misma técnica detrás de Signal) y las dos llegan, por separado, a la misma llave de cifrado. El servidor y la base de datos (Vercel KV) solo almacenan el bloque ya cifrado — nunca ven el texto ni la llave que lo descifra.
 - **Mensajes de una sola vista.** Con el interruptor 👁 activado, en cuanto la otra persona lo recibe, el contenido se destruye del servidor y queda un rastro "🔥 autodestruido" — no se puede volver a leer ni recuperar.
 - **Nadie entra sin las claves.** `ENTRY_KEY` para la bienvenida, `KEY_A`/`KEY_B` para el chat.
 - **Todo se autodestruye solo** pasado el tiempo que definas (TTL), sin que nadie tenga que borrar nada a mano.
@@ -68,7 +68,8 @@ Para que decidas con información real, no con humo. Esto es lo que SÍ está pr
 
 - **Fotos y video NO están cifradas.** Viven en Vercel Blob como archivos accesibles por su URL (una URL larga y aleatoria, difícil de adivinar, pero no cifrada). Si alguien consigue esa URL exacta antes de que se borre, puede verla. El texto sí está cifrado; las imágenes/videos, por ahora, dependen de que la URL sea difícil de adivinar, no de cifrado real.
 - **"No se puede copiar" tiene un límite real.** Bloqueamos clic derecho y el evento de copiar, pero cualquiera con las herramientas de desarrollador del navegador puede ver el contenido igual — cierto en cualquier página web, no hay forma de evitarlo del todo desde un navegador.
-- **Si pierden la frase de cifrado, pierden los mensajes viejos.** No hay "recuperar contraseña" para la frase de cifrado — es la idea, nosotros tampoco la guardamos en ningún lado. Si un día la cambian o la olvidan, los mensajes ya guardados con la frase anterior no se van a poder descifrar (van a mostrar "no se pudo descifrar").
+- **Si borran los datos del navegador (o cambian de dispositivo), pierden su llave privada.** No hay "recuperar llave" — es la idea, nadie más la tiene guardada en ningún lado, ni nosotros. Si eso pasa, ese navegador genera una llave nueva automáticamente la próxima vez que entre, pero los mensajes cifrados con la llave anterior quedan ilegibles para siempre (mostrarán "no se pudo descifrar"). Usa `/dev` → reiniciar todo si estás probando y quieres empezar de cero.
+- **La primera vez, alguien tiene que esperar a que el otro entre.** Hasta que las dos llaves públicas existan en el servidor, no hay con qué cifrar — verán una pantalla de "armando el cifrado" hasta que ambos hayan entrado al chat al menos una vez.
 - **La seguridad de la cuenta de Vercel y GitHub importa.** Cualquiera que entre a tu cuenta de Vercel puede ver las variables de entorno (`KEY_A`, `KEY_B`, `ENTRY_KEY`) y desconectar todo. Activa verificación en dos pasos en Vercel y GitHub, y mantén el repo en **privado**.
 - **Rota las claves antes de ir en serio.** Las claves de prueba que generamos en esta conversación de chat quedaron escritas en este historial — trátalas como ya vistas por más de ustedes dos. Antes de considerar esto "en vivo" de verdad, genera un set nuevo de `ENTRY_KEY`, `KEY_A`, `KEY_B` y la frase de cifrado, y no las compartas por el mismo medio donde las generaste.
 - **`AUTH_SECRET` no rota solo.** Si algún día sospechan que se filtró, cámbienlo en Vercel — invalida todas las sesiones activas al instante (ambos tendrían que volver a loguearse).
@@ -76,7 +77,7 @@ Para que decidas con información real, no con humo. Esto es lo que SÍ está pr
 ### Antes de considerar esto "en vivo"
 
 1. Genera un set nuevo de claves (no las que usamos para probar).
-2. Ponte de acuerdo con la otra persona en la frase de cifrado **por fuera de este chat** (en persona, o por otro canal ya establecido) — nunca la escriban aquí ni se la compartan en el mismo lugar donde comparten `ENTRY_KEY`.
+2. Ve a `/dev` y toca **[ REINICIAR TODO ]** una última vez, para que ambos generen su llave de cifrado definitiva desde cero (no la que usaste mientras probabas).
 3. Cambia `DEV_MODE` a `false`.
 4. Confirma que el repo de GitHub esté en privado.
 

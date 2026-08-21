@@ -4,10 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import {
-  getSavedPassphrase,
-  savePassphrase,
-  clearPassphrase,
-  deriveKey,
+  loadOrCreateKeypair,
+  deriveSharedKey,
   encryptText,
   decryptText,
 } from "@/lib/crypto-client";
@@ -24,38 +22,61 @@ export default function ChatClient({ user }) {
   const [uploadError, setUploadError] = useState("");
   const [now, setNow] = useState(Date.now());
   const [encKey, setEncKey] = useState(null);
-  const [needsPassphrase, setNeedsPassphrase] = useState(false);
-  const [passphraseInput, setPassphraseInput] = useState("");
+  const [waitingForOther, setWaitingForOther] = useState(false);
+  const myKeypairRef = useRef(null);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const router = useRouter();
 
-  // Deriva la llave de cifrado a partir de la frase guardada en este
-  // navegador (nunca se manda al servidor). Si no hay ninguna, se pide.
-  useEffect(() => {
-    const saved = getSavedPassphrase();
-    if (saved) {
-      deriveKey(saved).then(setEncKey);
-    } else {
-      setNeedsPassphrase(true);
+  // Genera (o recupera) tu propio par de llaves, publica la pública, y
+  // trata de conseguir la de la otra persona para armar el cifrado
+  // compartido. Nadie tuvo que decirle nada a nadie por fuera de la app.
+  const trySetupEncryption = useCallback(async () => {
+    if (!myKeypairRef.current) {
+      const kp = await loadOrCreateKeypair(user);
+      myKeypairRef.current = kp;
+      if (kp.isNew) {
+        await fetch("/api/keys", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicKeyJwk: kp.publicJwk }),
+        }).catch(() => {});
+      } else {
+        // asegura que el servidor tenga nuestra pública aunque ya
+        // existiera localmente (por si se limpió del lado del servidor)
+        fetch("/api/keys", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicKeyJwk: kp.publicJwk }),
+        }).catch(() => {});
+      }
     }
-  }, []);
 
-  async function handleSetPassphrase(e) {
-    e.preventDefault();
-    if (!passphraseInput.trim()) return;
-    savePassphrase(passphraseInput.trim());
-    const key = await deriveKey(passphraseInput.trim());
-    setEncKey(key);
-    setNeedsPassphrase(false);
-    setPassphraseInput("");
-  }
+    try {
+      const res = await fetch("/api/keys", { cache: "no-store" });
+      const data = await res.json();
+      if (data.otherPublicKey) {
+        const shared = await deriveSharedKey(
+          myKeypairRef.current.privateKey,
+          data.otherPublicKey
+        );
+        setEncKey(shared);
+        setWaitingForOther(false);
+      } else {
+        setWaitingForOther(true);
+      }
+    } catch {
+      // se reintenta en el próximo poll
+    }
+  }, [user]);
 
-  function handleChangePassphrase() {
-    clearPassphrase();
-    setEncKey(null);
-    setNeedsPassphrase(true);
-  }
+  useEffect(() => {
+    trySetupEncryption();
+    const interval = setInterval(() => {
+      if (!encKey) trySetupEncryption();
+    }, POLL_MS);
+    return () => clearInterval(interval);
+  }, [trySetupEncryption, encKey]);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -169,7 +190,7 @@ export default function ChatClient({ user }) {
     }
   }
 
-  if (needsPassphrase) {
+  if (waitingForOther && !encKey) {
     return (
       <main
         style={{
@@ -180,14 +201,14 @@ export default function ChatClient({ user }) {
           padding: 24,
         }}
       >
-        <form
-          onSubmit={handleSetPassphrase}
+        <div
           style={{
             width: "100%",
             maxWidth: 380,
             display: "flex",
             flexDirection: "column",
             gap: 16,
+            textAlign: "center",
           }}
         >
           <p
@@ -196,60 +217,17 @@ export default function ChatClient({ user }) {
               fontSize: 12,
               letterSpacing: "0.2em",
               color: "var(--muted)",
-              textAlign: "center",
             }}
           >
-            FRASE DE CIFRADO
+            ARMANDO EL CIFRADO
           </p>
-          <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, textAlign: "center" }}>
-            Esta frase nunca se manda al servidor. Solo sirve para descifrar
-            los mensajes en este navegador. Los dos deben usar exactamente la
-            misma — pónganse de acuerdo antes, por fuera de aquí.
+          <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
+            Ya generaste tu llave. Falta que la otra persona entre al menos
+            una vez a este chat para poder combinar las dos y cifrar la
+            conversación. En cuanto entre, esto se arma solo.
           </p>
-          <div
-            style={{
-              border: "1px solid var(--border)",
-              background: "var(--surface)",
-              padding: "18px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <span style={{ color: "var(--accent)" }}>&gt;</span>
-            <input
-              type="password"
-              value={passphraseInput}
-              onChange={(e) => setPassphraseInput(e.target.value)}
-              placeholder="frase secreta compartida"
-              autoComplete="off"
-              autoFocus
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: "var(--text)",
-                fontSize: 15,
-              }}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={!passphraseInput.trim()}
-            style={{
-              background: "transparent",
-              border: `1px solid ${passphraseInput.trim() ? "var(--accent)" : "var(--border)"}`,
-              color: passphraseInput.trim() ? "var(--accent)" : "var(--muted)",
-              padding: "12px 16px",
-              fontFamily: "var(--font-display)",
-              fontSize: 12,
-              letterSpacing: "0.2em",
-            }}
-          >
-            [ DESBLOQUEAR ]
-          </button>
-        </form>
+          <PulseDot />
+        </div>
       </main>
     );
   }
@@ -288,21 +266,6 @@ export default function ChatClient({ user }) {
           CANAL ACTIVO · {user}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={handleChangePassphrase}
-            title="cambiar la frase de cifrado"
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border)",
-              color: "var(--muted)",
-              padding: "6px 12px",
-              fontSize: 11,
-              letterSpacing: "0.1em",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            CLAVE
-          </button>
           <button
             onClick={handleLogout}
             style={{

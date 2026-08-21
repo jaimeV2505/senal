@@ -13,6 +13,8 @@ export async function POST() {
   await kv.del("welcome:response");
   await kv.del("lastSeen:A");
   await kv.del("lastSeen:B");
+  await kv.del("pubkey:A");
+  await kv.del("pubkey:B");
 
   const ids = (await kv.zrange("messages:index", 0, -1)) || [];
   if (ids.length > 0) {
