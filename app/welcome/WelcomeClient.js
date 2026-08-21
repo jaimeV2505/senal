@@ -3,30 +3,43 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const DEFAULT_MESSAGE =
-  "Desde la última vez, pensé que los sueños pararían. No fue así.";
+const LINES = [
+  "Desde la última vez, pensé que los sueños pararían.",
+  "No fue así.",
+  "Sigo llegando aquí cuando pienso en ti.",
+  "No sé si tú también.",
+];
 
 export default function WelcomeClient() {
+  const [linesShown, setLinesShown] = useState([]);
   const [displayed, setDisplayed] = useState("");
+  const [lineIndex, setLineIndex] = useState(0);
   const [decodeDone, setDecodeDone] = useState(false);
   const [choice, setChoice] = useState(null); // null | "si" | "no"
   const [sending, setSending] = useState(false);
-  const fullText = useRef(DEFAULT_MESSAGE);
   const router = useRouter();
 
   useEffect(() => {
+    if (lineIndex >= LINES.length) {
+      setDecodeDone(true);
+      return;
+    }
+    const text = LINES[lineIndex];
     let i = 0;
-    const text = fullText.current;
     const interval = setInterval(() => {
       i += 1;
       setDisplayed(text.slice(0, i));
       if (i >= text.length) {
         clearInterval(interval);
-        setDecodeDone(true);
+        setTimeout(() => {
+          setLinesShown((prev) => [...prev, text]);
+          setDisplayed("");
+          setLineIndex((n) => n + 1);
+        }, 650);
       }
     }, 38);
     return () => clearInterval(interval);
-  }, []);
+  }, [lineIndex]);
 
   async function respond(value) {
     setSending(true);
@@ -67,18 +80,27 @@ export default function WelcomeClient() {
           zIndex: 1,
         }}
       >
-        <p
+        <div
           style={{
             fontSize: 18,
-            lineHeight: 1.7,
+            lineHeight: 1.9,
             letterSpacing: "0.02em",
-            minHeight: 96,
+            minHeight: 160,
             color: "var(--text)",
           }}
         >
-          {displayed}
-          {!decodeDone && <Cursor />}
-        </p>
+          {linesShown.map((line, i) => (
+            <p key={i} style={{ margin: 0, opacity: 0.55 }}>
+              {line}
+            </p>
+          ))}
+          {lineIndex < LINES.length && (
+            <p style={{ margin: 0 }}>
+              {displayed}
+              <Cursor />
+            </p>
+          )}
+        </div>
 
         {decodeDone && choice === null && (
           <div

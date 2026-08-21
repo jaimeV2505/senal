@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { upload } from "@vercel/blob/client";
 
 const POLL_MS = 3000;
 
@@ -10,8 +11,11 @@ export default function ChatClient({ user }) {
   const [ttlSeconds, setTtlSeconds] = useState(86400);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [now, setNow] = useState(Date.now());
   const bottomRef = useRef(null);
+  const fileInputRef = useRef(null);
   const router = useRouter();
 
   const fetchMessages = useCallback(async () => {
@@ -64,6 +68,35 @@ export default function ChatClient({ user }) {
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
     router.push("/login");
+  }
+
+  async function handleFileSelected(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a elegir el mismo archivo después
+    if (!file) return;
+
+    setUploadError("");
+    setUploading(true);
+    try {
+      const type = file.type.startsWith("video/") ? "video" : "image";
+
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload",
+      });
+
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, url: blob.url }),
+      });
+
+      await fetchMessages();
+    } catch (err) {
+      setUploadError("no se pudo enviar el archivo.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -145,6 +178,19 @@ export default function ChatClient({ user }) {
         <div ref={bottomRef} />
       </div>
 
+      {uploadError && (
+        <div
+          style={{
+            color: "var(--danger)",
+            fontSize: 11,
+            padding: "0 20px",
+            letterSpacing: "0.05em",
+          }}
+        >
+          {uploadError}
+        </div>
+      )}
+
       <form
         onSubmit={handleSend}
         style={{
@@ -154,6 +200,29 @@ export default function ChatClient({ user }) {
           borderTop: "1px solid var(--border)",
         }}
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          onChange={handleFileSelected}
+          style={{ display: "none" }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          title="adjuntar foto o video"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border)",
+            color: uploading ? "var(--muted)" : "var(--text)",
+            padding: "0 14px",
+            fontFamily: "var(--font-display)",
+            fontSize: 15,
+          }}
+        >
+          {uploading ? "…" : "+"}
+        </button>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -215,14 +284,30 @@ function Bubble({ msg, own, ttlSeconds, now }) {
         style={{
           background: own ? "var(--surface-2)" : "var(--surface)",
           border: `1px solid ${own ? "var(--accent-dim)" : "var(--border)"}`,
-          padding: "10px 14px",
+          padding: msg.type === "text" ? "10px 14px" : 4,
           fontSize: 14,
           lineHeight: 1.5,
           whiteSpace: "pre-wrap",
           wordBreak: "break-word",
+          maxWidth: 280,
         }}
       >
-        {msg.text}
+        {msg.type === "image" && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={msg.url}
+            alt=""
+            style={{ display: "block", maxWidth: "100%", maxHeight: 320 }}
+          />
+        )}
+        {msg.type === "video" && (
+          <video
+            src={msg.url}
+            controls
+            style={{ display: "block", maxWidth: "100%", maxHeight: 320 }}
+          />
+        )}
+        {(!msg.type || msg.type === "text") && msg.text}
       </div>
       <div
         style={{
