@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 const LINES = [
   "Desde la última vez, pensé que los sueños pararían.",
   "No fue así.",
-  "Sigo llegando aquí cuando pienso en ti.",
-  "No sé si tú también.",
+  "Sigo llegando aquí cuando pienso en ti, y pienso más de lo que debería admitir.",
+  "Tengo cosas que contarte que no le he contado a nadie más.",
+  "Algunas te van a gustar más de lo que deberían.",
 ];
 
 export default function WelcomeClient() {
@@ -118,7 +119,7 @@ export default function WelcomeClient() {
                 letterSpacing: "0.1em",
               }}
             >
-              ¿QUIERES CONTINUAR ESTA CONVERSACIÓN?
+              ¿TE ATREVES A SEGUIR?
             </p>
             <div style={{ display: "flex", gap: 12 }}>
               <ChoiceButton
