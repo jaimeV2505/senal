@@ -14,6 +14,7 @@ export default function ChatClient({ user }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [lightbox, setLightbox] = useState(null); // { url, type } | null
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -45,6 +46,15 @@ export default function ChatClient({ user }) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setLightbox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
 
   async function handleSend(e) {
     e.preventDefault();
@@ -188,7 +198,14 @@ export default function ChatClient({ user }) {
         )}
 
         {messages.map((m) => (
-          <Bubble key={m.id} msg={m} own={m.from === user} ttlSeconds={ttlSeconds} now={now} />
+          <Bubble
+            key={m.id}
+            msg={m}
+            own={m.from === user}
+            ttlSeconds={ttlSeconds}
+            now={now}
+            onOpenMedia={(url, type) => setLightbox({ url, type })}
+          />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -284,11 +301,75 @@ export default function ChatClient({ user }) {
           ENVIAR
         </button>
       </form>
+
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.92)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            cursor: "zoom-out",
+          }}
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            aria-label="cerrar"
+            style={{
+              position: "absolute",
+              top: 18,
+              right: 18,
+              background: "transparent",
+              border: "1px solid var(--border)",
+              color: "var(--text)",
+              width: 36,
+              height: 36,
+              fontFamily: "var(--font-display)",
+              fontSize: 16,
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+          {lightbox.type === "image" && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={lightbox.url}
+              alt=""
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: "92vw",
+                maxHeight: "88vh",
+                objectFit: "contain",
+                cursor: "default",
+              }}
+            />
+          )}
+          {lightbox.type === "video" && (
+            <video
+              src={lightbox.url}
+              controls
+              autoPlay
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: "92vw",
+                maxHeight: "88vh",
+                cursor: "default",
+              }}
+            />
+          )}
+        </div>
+      )}
     </main>
   );
 }
 
-function Bubble({ msg, own, ttlSeconds, now }) {
+function Bubble({ msg, own, ttlSeconds, now, onOpenMedia }) {
   const expiresAt = msg.at + ttlSeconds * 1000;
   const remainingMs = Math.max(0, expiresAt - now);
   const remainingMin = Math.floor(remainingMs / 60000);
@@ -339,15 +420,37 @@ function Bubble({ msg, own, ttlSeconds, now }) {
           <img
             src={msg.url}
             alt=""
-            style={{ display: "block", maxWidth: "100%", maxHeight: 320 }}
+            onClick={() => onOpenMedia(msg.url, "image")}
+            style={{ display: "block", maxWidth: "100%", maxHeight: 320, cursor: "zoom-in" }}
           />
         )}
         {!burned && msg.type === "video" && (
-          <video
-            src={msg.url}
-            controls
-            style={{ display: "block", maxWidth: "100%", maxHeight: 320 }}
-          />
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <video
+              src={msg.url}
+              controls
+              style={{ display: "block", maxWidth: "100%", maxHeight: 320 }}
+            />
+            <button
+              onClick={() => onOpenMedia(msg.url, "video")}
+              title="ver en grande"
+              style={{
+                position: "absolute",
+                top: 6,
+                right: 6,
+                background: "rgba(0,0,0,0.55)",
+                border: "1px solid rgba(255,255,255,0.3)",
+                color: "var(--text)",
+                width: 26,
+                height: 26,
+                fontSize: 13,
+                lineHeight: 1,
+                cursor: "pointer",
+              }}
+            >
+              ⛶
+            </button>
+          </div>
         )}
         {!burned && msg.type === "text" && msg.text}
       </div>
