@@ -145,8 +145,9 @@ export default function ChatClient({ user }) {
             color: "var(--muted)",
           }}
         >
-          <PulseDot />
-          CANAL ACTIVO · {user}
+          <PulseDot color={user === "A" ? "var(--accent)" : "var(--accent-b)"} />
+          CANAL ACTIVO ·{" "}
+          <span style={{ color: user === "A" ? "var(--accent)" : "var(--accent-b)" }}>{user}</span>
         </div>
         <button
           onClick={handleLogout}
@@ -300,22 +301,30 @@ function Bubble({ msg, own, ttlSeconds, now }) {
   const urgent = remainingMs < 5 * 60 * 1000;
   const burned = msg.type === "burned";
 
+  // A y B siempre quedan cada uno a su lado y con su color, sea quien sea
+  // quien esté mirando la pantalla — no depende de si el mensaje es "tuyo".
+  const isA = msg.from === "A";
+  const senderColor = isA ? "var(--accent)" : "var(--accent-b)";
+  const senderDim = isA ? "var(--accent-dim)" : "var(--accent-b-dim)";
+
   return (
     <div
       style={{
-        alignSelf: own ? "flex-end" : "flex-start",
+        alignSelf: isA ? "flex-start" : "flex-end",
         maxWidth: "78%",
         display: "flex",
         flexDirection: "column",
         gap: 4,
-        alignItems: own ? "flex-end" : "flex-start",
+        alignItems: isA ? "flex-start" : "flex-end",
       }}
     >
       <div
         className="msg-text"
         style={{
-          background: own ? "var(--surface-2)" : "var(--surface)",
-          border: `1px solid ${own ? "var(--accent-dim)" : "var(--border)"}`,
+          background: "var(--surface)",
+          border: `1px solid ${senderDim}`,
+          borderLeft: isA ? `3px solid ${senderColor}` : `1px solid ${senderDim}`,
+          borderRight: !isA ? `3px solid ${senderColor}` : `1px solid ${senderDim}`,
           padding: msg.type === "text" || burned ? "10px 14px" : 4,
           fontSize: 14,
           lineHeight: 1.5,
@@ -353,6 +362,9 @@ function Bubble({ msg, own, ttlSeconds, now }) {
           letterSpacing: "0.05em",
         }}
       >
+        <span style={{ color: senderColor, fontFamily: "var(--font-display)" }}>
+          {msg.from}
+        </span>
         <span>{new Date(msg.at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}</span>
         {!burned && <span>· se borra en {remainingLabel}</span>}
         {!burned && msg.viewOnce && <span>· 👁 una vista</span>}
@@ -362,14 +374,14 @@ function Bubble({ msg, own, ttlSeconds, now }) {
   );
 }
 
-function PulseDot() {
+function PulseDot({ color = "var(--accent)" }) {
   return (
     <span
       style={{
         width: 7,
         height: 7,
         borderRadius: "50%",
-        background: "var(--accent)",
+        background: color,
         display: "inline-block",
         animation: "pulse 1.6s ease-in-out infinite",
       }}

@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 const LINES = [
-  "Desde la última vez, pensé que los sueños pararían.",
-  "No fue así.",
-  "Sigo llegando aquí cuando pienso en ti.",
-  "Hay cosas que últimamente me hacen pensar en ti.",
-  "Y, prefiero que sigan siendo solo nuestras.",
+ "Desde la última vez, pensé que los sueños pararían.",
+"No fue así.",
+"Sigo llegando aquí cuando pienso en ti.",
+"Últimamente, algunas cosas me han hecho recordarte.",
+"Supongo que hay recuerdos que aparecen sin avisar.",
+"Y quizá algunos están mejor donde están.",
+"Por aquí."
 ];
 
 export default function WelcomeClient() {
