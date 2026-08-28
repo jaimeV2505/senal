@@ -66,19 +66,24 @@ Para que decidas con información real, no con humo. Esto es lo que SÍ está pr
 
 ### Lo que sí está cubierto
 
-- **El texto viaja por HTTPS (como cualquier sitio serio), pero por ahora se guarda en la base de datos sin cifrado adicional propio.** Probamos un esquema de cifrado de extremo a extremo con frase personal + intercambio de llaves, pero se quitó por ahora para simplificar el flujo — quedó registrado en el historial de este proyecto por si quieren retomarlo más adelante. Mientras tanto, quien tenga acceso al dashboard de Vercel KV puede leer el contenido de los mensajes de texto directamente.
-- **Mensajes de una sola vista.** Con el interruptor 👁 activado, en cuanto la otra persona lo recibe, el contenido se destruye del servidor y queda un rastro "🔥 autodestruido" — no se puede volver a leer ni recuperar.
+- **El texto viaja por HTTPS, pero se guarda en la base de datos sin cifrado propio.** Probamos un esquema de cifrado de extremo a extremo con frase personal, pero se quitó para simplificar el flujo. Mientras tanto, quien tenga acceso al dashboard de Vercel KV puede leer el contenido de los mensajes directamente.
+- **Límite de intentos en la clave de entrada y en el login personal.** Máximo 8 intentos fallidos cada 15 minutos por dirección IP — pasado eso, el servidor rechaza el intento aunque la clave sea correcta, hasta que pase la ventana de tiempo. Cierra la puerta a intentos automatizados de adivinar las claves.
+- **Alerta por Telegram si alguien agota esos intentos.** Si configuraste `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, te llega un aviso apenas se agotan los intentos en la puerta de entrada o el login — señal temprana de que alguien está tratando de forzar la entrada.
+- **Headers de seguridad del navegador:** HSTS (fuerza HTTPS incluso si alguien escribe `http://` a mano), bloqueo de sniffing de tipo de contenido, política de referrer restrictiva, y bloqueo de acceso a cámara/micrófono/ubicación desde la página.
+- **Mensajes de una sola vista.** Con el interruptor 👁 activado, pasados ~20 segundos desde que la otra persona lo recibe, el contenido se destruye del servidor y queda un rastro "🔥 autodestruido" — no se puede volver a leer ni recuperar.
 - **Nadie entra sin las claves.** `ENTRY_KEY` para la bienvenida, `KEY_A`/`KEY_B` para el chat.
 - **Todo se autodestruye solo** pasado el tiempo que definas (TTL), sin que nadie tenga que borrar nada a mano.
 - **Fotos y videos se borran** junto con su mensaje (aunque ver el punto de abajo sobre estos).
 
 ### Lo que NO puedo prometer (para que no haya sorpresas)
 
-- **Fotos y video NO están cifradas.** Viven en Vercel Blob como archivos accesibles por su URL (una URL larga y aleatoria, difícil de adivinar, pero no cifrada). Si alguien consigue esa URL exacta antes de que se borre, puede verla. El texto sí está cifrado; las imágenes/videos, por ahora, dependen de que la URL sea difícil de adivinar, no de cifrado real.
+- **Fotos y video no están cifradas ni requieren sesión para verse.** Viven en Vercel Blob, accesibles directamente por su URL (larga y aleatoria, difícil de adivinar, pero no protegida por login). Si alguien consigue esa URL exacta antes de que se borre, puede verla sin necesidad de las claves.
+- **No hay CSP (Content-Security-Policy) estricta todavía.** Agregar una CSP bien hecha reduce el riesgo de inyección de scripts, pero una mal calibrada puede romper la app (fuentes, subida de archivos, etc.) — y no tengo forma de probarla en vivo antes de mandártela. Se puede agregar más adelante iterando con cuidado si quieres ese nivel extra.
 - **"No se puede copiar" tiene un límite real.** Bloqueamos clic derecho y el evento de copiar, pero cualquiera con las herramientas de desarrollador del navegador puede ver el contenido igual — cierto en cualquier página web, no hay forma de evitarlo del todo desde un navegador.
-- **La seguridad de la cuenta de Vercel y GitHub importa.** Cualquiera que entre a tu cuenta de Vercel puede ver las variables de entorno (`KEY_A`, `KEY_B`, `ENTRY_KEY`) y desconectar todo. Activa verificación en dos pasos en Vercel y GitHub, y mantén el repo en **privado**.
-- **Rota las claves antes de ir en serio.** Las claves de prueba que generamos en esta conversación de chat quedaron escritas en este historial — trátalas como ya vistas por más de ustedes dos. Antes de considerar esto "en vivo" de verdad, genera un set nuevo de `ENTRY_KEY`, `KEY_A`, `KEY_B` y la frase de cifrado, y no las compartas por el mismo medio donde las generaste.
+- **La seguridad de la cuenta de Vercel y GitHub importa más que cualquier código.** Cualquiera que entre a tu cuenta de Vercel puede ver las variables de entorno (`KEY_A`, `KEY_B`, `ENTRY_KEY`) y desconectar todo. Activa verificación en dos pasos en Vercel y GitHub, y mantén el repo en **privado**.
+- **Rota las claves antes de ir en serio.** Las claves de prueba que generamos en esta conversación de chat quedaron escritas en ese historial — trátalas como ya vistas por más de ustedes dos. Antes de considerar esto "en vivo" de verdad, genera un set nuevo de `ENTRY_KEY`, `KEY_A`, `KEY_B`.
 - **`AUTH_SECRET` no rota solo.** Si algún día sospechan que se filtró, cámbienlo en Vercel — invalida todas las sesiones activas al instante (ambos tendrían que volver a loguearse).
+- **La sesión dura 30 días.** Cómodo para no repetir el login, pero significa que un dispositivo desbloqueado y robado tiene acceso directo sin volver a pedir clave. Si prefieren más seguridad que comodidad, se puede acortar (avísame y lo ajusto).
 
 ### Antes de considerar esto "en vivo"
 
@@ -86,6 +91,7 @@ Para que decidas con información real, no con humo. Esto es lo que SÍ está pr
 2. Ve a `/dev` y toca **[ REINICIAR TODO ]** una última vez.
 3. Cambia `DEV_MODE` a `false`.
 4. Confirma que el repo de GitHub esté en privado.
+5. Activa verificación en dos pasos en tu cuenta de Vercel y de GitHub.
 
 ## Estructura
 
