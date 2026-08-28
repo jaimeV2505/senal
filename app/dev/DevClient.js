@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function DevClient() {
   const [status, setStatus] = useState("");
-  const router = useRouter();
 
   async function handleReset() {
     setStatus("reiniciando...");
@@ -17,7 +15,7 @@ export default function DevClient() {
         return;
       }
       setStatus("listo. redirigiendo...");
-      setTimeout(() => router.push("/"), 600);
+      setTimeout(() => (window.location.href = "/"), 600);
     } catch {
       setStatus("no se pudo conectar.");
     }

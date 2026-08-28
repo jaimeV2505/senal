@@ -7,6 +7,7 @@ import { del } from "@vercel/blob";
 const INDEX_KEY = "messages:index";
 const TTL = parseInt(process.env.MESSAGE_TTL_SECONDS || "86400", 10);
 const SAFETY_MARGIN = 3600; // colchón extra en Redis para que la limpieza explícita mande
+const VIEW_ONCE_GRACE_MS = 20000; // tiempo real para leerlo antes de autodestruirse (20s)
 
 export async function GET() {
   const user = await getSession();
@@ -32,7 +33,8 @@ export async function GET() {
     const messages = [];
     const idsToRemove = [];
     const blobsToDelete = [];
-    const toBurn = []; // mensajes de "una vista" que se entregan ahora y se destruyen después
+    const toBurn = []; // mensajes de "una vista" cuyo margen de gracia ya pasó
+    const toMarkRevealed = []; // mensajes de "una vista" que se entregan por primera vez ahora
 
     for (let i = 0; i < raw.length; i++) {
       const msg = raw[i];
@@ -51,11 +53,16 @@ export async function GET() {
         seen: msg.from === user ? msg.at <= otherLastSeen : true,
       });
 
-      // Se destruye después de que la otra persona (el destinatario, no quien
-      // lo envió) lo recibe una vez. Quien lo mandó puede seguir viéndolo en
-      // su propia lista hasta que eso pase.
-      if (msg.viewOnce && msg.type !== "burned" && msg.from !== user) {
-        toBurn.push(msg);
+      if (msg.viewOnce && msg.type !== "burned") {
+        if (!msg.revealedAt) {
+          // Primera vez que el destinatario (no quien lo envió) lo recibe:
+          // arranca el conteo de gracia, pero todavía no se destruye.
+          if (msg.from !== user) {
+            toMarkRevealed.push(msg);
+          }
+        } else if (now - msg.revealedAt >= VIEW_ONCE_GRACE_MS) {
+          toBurn.push(msg);
+        }
       }
     }
 
@@ -65,6 +72,15 @@ export async function GET() {
     }
     if (blobsToDelete.length > 0) {
       await Promise.all(blobsToDelete.map((url) => del(url).catch(() => {})));
+    }
+    if (toMarkRevealed.length > 0) {
+      await Promise.all(
+        toMarkRevealed.map(async (msg) => {
+          const remainingMs = Math.max(0, (msg.expiresAt || now) - now);
+          const remainingSec = Math.max(60, Math.floor(remainingMs / 1000));
+          await kv.set(`msg:${msg.id}`, { ...msg, revealedAt: now }, { ex: remainingSec });
+        })
+      );
     }
     if (toBurn.length > 0) {
       await Promise.all(

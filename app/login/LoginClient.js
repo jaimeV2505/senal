@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginClient({ currentUser }) {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
-  const router = useRouter();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -30,7 +28,7 @@ export default function LoginClient({ currentUser }) {
         setLoading(false);
         return;
       }
-      router.push("/chat");
+      window.location.href = "/chat";
     } catch {
       setError("no se pudo conectar.");
       setLoading(false);
@@ -63,7 +61,7 @@ export default function LoginClient({ currentUser }) {
               este navegador.
             </p>
             <button
-              onClick={() => router.push("/chat")}
+              onClick={() => (window.location.href = "/chat")}
               style={{
                 background: "transparent",
                 border: "1px solid var(--accent)",

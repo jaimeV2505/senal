@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 
 export default function EntryGate() {
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const inputRef = useRef(null);
-  const router = useRouter();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -30,7 +28,7 @@ export default function EntryGate() {
         setLoading(false);
         return;
       }
-      router.push("/welcome");
+      window.location.href = "/welcome";
     } catch {
       setError("no se pudo conectar.");
       setLoading(false);

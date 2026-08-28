@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 
 const POLL_MS = 3000;
@@ -17,13 +16,12 @@ export default function ChatClient({ user }) {
   const [now, setNow] = useState(Date.now());
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
-  const router = useRouter();
 
   const fetchMessages = useCallback(async () => {
     try {
       const res = await fetch("/api/messages", { cache: "no-store" });
       if (res.status === 401) {
-        router.push("/login");
+        window.location.href = "/login";
         return;
       }
       const data = await res.json();
@@ -32,7 +30,7 @@ export default function ChatClient({ user }) {
     } catch {
       // silencioso: se reintenta en el siguiente poll
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     fetchMessages();
@@ -78,7 +76,7 @@ export default function ChatClient({ user }) {
 
   async function handleLogout() {
     await fetch("/api/logout", { method: "POST" });
-    router.push("/login");
+    window.location.href = "/login";
   }
 
   async function handleFileSelected(e) {
