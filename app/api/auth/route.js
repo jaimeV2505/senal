@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
-import { createSession, hasEntryPass } from "@/lib/auth";
+import { createSession } from "@/lib/auth";
 
 export async function POST(req) {
-  const okEntry = await hasEntryPass();
-  if (!okEntry) {
-    return NextResponse.json(
-      { error: "Primero necesitas pasar por la confirmación inicial." },
-      { status: 401 }
-    );
-  }
-
   const { key } = await req.json();
 
   let user = null;
