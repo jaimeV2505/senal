@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
 
 // Nunca devuelve los valores, solo si existen o no — así se puede confirmar
 // rápido cuál variable falta en este deployment específico sin exponer nada.
+// Solo exige sesión válida (no DEV_MODE), porque si no, no habría forma de
+// diagnosticar por qué DEV_MODE mismo no está tomando efecto.
 export async function GET() {
-  if (process.env.DEV_MODE !== "true") {
-    return NextResponse.json(
-      { error: "Diagnóstico deshabilitado (DEV_MODE no está activo)." },
-      { status: 403 }
-    );
+  const user = await getSession();
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
   const check = (name) => ({

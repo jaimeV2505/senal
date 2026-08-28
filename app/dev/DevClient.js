@@ -30,7 +30,9 @@ export default function DevClient() {
       const r1 = await fetch("/api/dev-reset", { method: "POST" });
       const r2 = await fetch("/api/reset-local", { method: "POST" });
       if (!r1.ok || !r2.ok) {
-        setStatus("algo falló al reiniciar. revisa la consola.");
+        const failed = !r1.ok ? r1 : r2;
+        const data = await failed.json().catch(() => ({}));
+        setStatus(data.error || "algo falló al reiniciar.");
         return;
       }
       setStatus("listo. redirigiendo...");
@@ -138,6 +140,14 @@ export default function DevClient() {
           probar el flujo completo desde cero. Solo funciona mientras{" "}
           <code>DEV_MODE=true</code>.
         </p>
+        {diagnosis && !diagnosis.vars.find((v) => v.name === "DEV_MODE")?.set && (
+          <p style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.6 }}>
+            DEV_MODE no está activo en este deployment — el botón de abajo no
+            va a funcionar hasta que agregues <code>DEV_MODE=true</code> en
+            Environment Variables (para este mismo ambiente:{" "}
+            {diagnosis.vercelEnv}) y hagas redeploy.
+          </p>
+        )}
         <button
           onClick={handleReset}
           style={{
