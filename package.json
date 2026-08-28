@@ -13,7 +13,6 @@
     "react-dom": "18.3.1",
     "@vercel/kv": "^2.0.0",
     "@vercel/blob": "^0.27.0",
-    "@noble/curves": "^1.6.0",
     "jose": "^5.6.3"
   }
 }

@@ -8,7 +8,7 @@ const LINES = [
   "No fue así.",
   "Sigo llegando aquí cuando pienso en ti.",
   "Hay cosas que últimamente me hacen pensar en ti.",
-  "Y por ahora, prefiero que sigan siendo solo nuestras.",
+  "Y, prefiero que sigan siendo solo nuestras.",
 ];
 
 export default function WelcomeClient() {

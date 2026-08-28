@@ -3,15 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
-import {
-  getSavedPassphrase,
-  savePassphrase,
-  clearPassphrase,
-  deriveKeypairFromPassphrase,
-  deriveSharedKey,
-  encryptText,
-  decryptText,
-} from "@/lib/crypto-client";
 
 const POLL_MS = 3000;
 
@@ -24,77 +15,9 @@ export default function ChatClient({ user }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [now, setNow] = useState(Date.now());
-  const [encKey, setEncKey] = useState(null);
-  const [needsPassphrase, setNeedsPassphrase] = useState(false);
-  const [passphraseInput, setPassphraseInput] = useState("");
-  const [waitingForOther, setWaitingForOther] = useState(false);
-  const myPrivateKeyRef = useRef(null);
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
   const router = useRouter();
-
-  // Publica tu llave pública (derivada de tu frase) y trata de conseguir
-  // la de la otra persona para armar el cifrado compartido.
-  const trySetupEncryption = useCallback(async () => {
-    if (!myPrivateKeyRef.current) return;
-    try {
-      const res = await fetch("/api/keys", { cache: "no-store" });
-      const data = await res.json();
-      if (data.otherPublicKey) {
-        const shared = await deriveSharedKey(myPrivateKeyRef.current, data.otherPublicKey);
-        setEncKey(shared);
-        setWaitingForOther(false);
-      } else {
-        setWaitingForOther(true);
-      }
-    } catch {
-      // se reintenta en el próximo poll
-    }
-  }, []);
-
-  async function unlockWithPassphrase(passphrase) {
-    const { privateKey, publicKeyB64 } = await deriveKeypairFromPassphrase(passphrase);
-    myPrivateKeyRef.current = privateKey;
-    await fetch("/api/keys", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ publicKey: publicKeyB64 }),
-    }).catch(() => {});
-    setNeedsPassphrase(false);
-    await trySetupEncryption();
-  }
-
-  useEffect(() => {
-    const saved = getSavedPassphrase(user);
-    if (saved) {
-      unlockWithPassphrase(saved);
-    } else {
-      setNeedsPassphrase(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (needsPassphrase || encKey) return;
-    const interval = setInterval(trySetupEncryption, POLL_MS);
-    return () => clearInterval(interval);
-  }, [needsPassphrase, encKey, trySetupEncryption]);
-
-  async function handleSetPassphrase(e) {
-    e.preventDefault();
-    if (!passphraseInput.trim()) return;
-    savePassphrase(user, passphraseInput.trim());
-    await unlockWithPassphrase(passphraseInput.trim());
-    setPassphraseInput("");
-  }
-
-  function handleChangePassphrase() {
-    clearPassphrase(user);
-    myPrivateKeyRef.current = null;
-    setEncKey(null);
-    setWaitingForOther(false);
-    setNeedsPassphrase(true);
-  }
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -104,27 +27,12 @@ export default function ChatClient({ user }) {
         return;
       }
       const data = await res.json();
-      const list = data.messages || [];
-
-      const decorated = await Promise.all(
-        list.map(async (m) => {
-          if (m.type !== "text") return m;
-          if (!encKey) return { ...m, plain: null, pending: true };
-          try {
-            const plain = await decryptText(encKey, m.ciphertext, m.iv);
-            return { ...m, plain };
-          } catch {
-            return { ...m, plain: null, decryptError: true };
-          }
-        })
-      );
-
-      setMessages(decorated);
+      setMessages(data.messages || []);
       if (data.ttlSeconds) setTtlSeconds(data.ttlSeconds);
     } catch {
       // silencioso: se reintenta en el siguiente poll
     }
-  }, [router, encKey]);
+  }, [router]);
 
   useEffect(() => {
     fetchMessages();
@@ -142,7 +50,7 @@ export default function ChatClient({ user }) {
 
   async function handleSend(e) {
     e.preventDefault();
-    if (!text.trim() || sending || !encKey) return;
+    if (!text.trim() || sending) return;
     setSending(true);
     setUploadError("");
     const value = text;
@@ -150,11 +58,10 @@ export default function ChatClient({ user }) {
     setText("");
     setViewOnce(false);
     try {
-      const { ciphertext, iv } = await encryptText(encKey, value);
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "text", ciphertext, iv, viewOnce: wasViewOnce }),
+        body: JSON.stringify({ type: "text", text: value, viewOnce: wasViewOnce }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -208,134 +115,6 @@ export default function ChatClient({ user }) {
     }
   }
 
-  if (needsPassphrase) {
-    return (
-      <main
-        style={{
-          minHeight: "100dvh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-        }}
-      >
-        <form
-          onSubmit={handleSetPassphrase}
-          style={{
-            width: "100%",
-            maxWidth: 380,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 12,
-              letterSpacing: "0.2em",
-              color: "var(--muted)",
-              textAlign: "center",
-            }}
-          >
-            TU FRASE PERSONAL
-          </p>
-          <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, textAlign: "center" }}>
-            Esta es solo tuya. No se la digas a la otra persona, ni ella te
-            va a pedir la suya. Nunca sale de este navegador — ni siquiera
-            nosotros la vemos. Úsala siempre igual: si algún día cambias de
-            dispositivo, con volver a escribirla recuperas todo.
-          </p>
-          <div
-            style={{
-              border: "1px solid var(--border)",
-              background: "var(--surface)",
-              padding: "18px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <span style={{ color: "var(--accent)" }}>&gt;</span>
-            <input
-              type="password"
-              value={passphraseInput}
-              onChange={(e) => setPassphraseInput(e.target.value)}
-              placeholder="tu frase secreta"
-              autoComplete="off"
-              autoFocus
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                color: "var(--text)",
-                fontSize: 15,
-              }}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={!passphraseInput.trim()}
-            style={{
-              background: "transparent",
-              border: `1px solid ${passphraseInput.trim() ? "var(--accent)" : "var(--border)"}`,
-              color: passphraseInput.trim() ? "var(--accent)" : "var(--muted)",
-              padding: "12px 16px",
-              fontFamily: "var(--font-display)",
-              fontSize: 12,
-              letterSpacing: "0.2em",
-            }}
-          >
-            [ DESBLOQUEAR ]
-          </button>
-        </form>
-      </main>
-    );
-  }
-
-  if (waitingForOther && !encKey) {
-    return (
-      <main
-        style={{
-          minHeight: "100dvh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-        }}
-      >
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 380,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-            textAlign: "center",
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 12,
-              letterSpacing: "0.2em",
-              color: "var(--muted)",
-            }}
-          >
-            ARMANDO EL CIFRADO
-          </p>
-          <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
-            Ya guardaste tu frase. Falta que la otra persona entre y ponga
-            la suya para poder combinar las dos y cifrar la conversación. En
-            cuanto lo haga, esto se arma solo.
-          </p>
-          <PulseDot />
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main
       style={{
@@ -369,37 +148,20 @@ export default function ChatClient({ user }) {
           <PulseDot />
           CANAL ACTIVO · {user}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={handleChangePassphrase}
-            title="cambiar tu frase personal"
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border)",
-              color: "var(--muted)",
-              padding: "6px 12px",
-              fontSize: 11,
-              letterSpacing: "0.1em",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            MI FRASE
-          </button>
-          <button
-            onClick={handleLogout}
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border)",
-              color: "var(--muted)",
-              padding: "6px 12px",
-              fontSize: 11,
-              letterSpacing: "0.1em",
-              fontFamily: "var(--font-display)",
-            }}
-          >
-            SALIR
-          </button>
-        </div>
+        <button
+          onClick={handleLogout}
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border)",
+            color: "var(--muted)",
+            padding: "6px 12px",
+            fontSize: 11,
+            letterSpacing: "0.1em",
+            fontFamily: "var(--font-display)",
+          }}
+        >
+          SALIR
+        </button>
       </header>
 
       <div
@@ -509,7 +271,7 @@ export default function ChatClient({ user }) {
         />
         <button
           type="submit"
-          disabled={!text.trim() || sending || !encKey}
+          disabled={!text.trim() || sending}
           style={{
             background: "transparent",
             border: `1px solid ${text.trim() ? "var(--accent)" : "var(--border)"}`,
@@ -580,15 +342,7 @@ function Bubble({ msg, own, ttlSeconds, now }) {
             style={{ display: "block", maxWidth: "100%", maxHeight: 320 }}
           />
         )}
-        {!burned && msg.type === "text" && msg.decryptError && (
-          <span style={{ color: "var(--danger)" }}>
-            no se pudo descifrar (frase incorrecta)
-          </span>
-        )}
-        {!burned && msg.type === "text" && msg.pending && (
-          <span style={{ color: "var(--muted)" }}>descifrando...</span>
-        )}
-        {!burned && msg.type === "text" && !msg.decryptError && !msg.pending && msg.plain}
+        {!burned && msg.type === "text" && msg.text}
       </div>
       <div
         style={{

@@ -117,14 +117,11 @@ export async function POST(req) {
     const expiresAt = at + TTL * 1000;
 
     if (type === "text") {
-      // El servidor nunca ve el texto en claro: solo recibe y guarda el
-      // bloque ya cifrado por el navegador de quien lo envía.
-      const ciphertext = (body.ciphertext || "").trim();
-      const iv = (body.iv || "").trim();
-      if (!ciphertext || !iv) {
-        return NextResponse.json({ error: "Mensaje vacío o mal cifrado." }, { status: 400 });
+      const text = (body.text || "").trim();
+      if (!text) {
+        return NextResponse.json({ error: "Mensaje vacío." }, { status: 400 });
       }
-      message = { id, from: user, type, ciphertext, iv, viewOnce, at, expiresAt };
+      message = { id, from: user, type, text: text.slice(0, 4000), viewOnce, at, expiresAt };
     } else {
       if (!body.url) {
         return NextResponse.json({ error: "Falta el archivo." }, { status: 400 });
